@@ -809,7 +809,7 @@ export default function App() {
                   value={fitMode}
                   onChange={(e) => setFitMode(e.target.value as any)}
                 >
-                  <option value="contain">CONTÊM</option>
+                  <option value="contain">AJUSTAR</option>
                   <option value="cover">PREENCHER</option>
                   <option value="stretch">ESTENDER</option>
                 </select>
