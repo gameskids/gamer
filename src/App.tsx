@@ -726,69 +726,115 @@ export default function App() {
             <h1 className="nav-title">{gameTitle}</h1>
           </div>
 
-          <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
-            {questions.length > 0 && view !== 'playing' && view !== 'ranking' && (
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  title="Abrir Projeção"
-                  onClick={handleOpenProjection}
-                  className="btn-projection"
-                  style={{ background: projectionActive ? 'rgba(34,197,94,0.1)' : '' }}
-                >
-                  <Monitor size={18} /> PROJETAR
-                </button>
-                {projectionActive && (
-                  <button
-                    title="Fechar Projeção"
-                    onClick={handleStopProjection}
-                    className="btn-secondary"
-                    style={{ borderColor: 'var(--danger)', color: 'var(--danger)', background: 'rgba(239,68,68,0.1)' }}
-                  >
-                    PARAR
-                  </button>
-                )}
-              </div>
-            )}
-            {currentUser && (
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button title="Exportar" onClick={handleExport} className="btn-secondary"><Download size={18} /></button>
-                <button title="Importar" onClick={handleImport} className="btn-secondary"><Upload size={18} /></button>
+          <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+            {/* 1. MESTRE LOGIN/LOGOUT */}
+            {!currentUser ? (
+              <button
+                title="Entrar como Mestre"
+                onClick={() => {
+                  const storedMasterName = localStorage.getItem('quiz_master_name');
+                  const name = prompt(storedMasterName
+                    ? "PROJETO PROTEGIDO. Digite o nome do Mestre para editar:"
+                    : "DEFINIR MESTRE: Digite seu nome para bloquear a edição (Apenas quem souber este nome poderá editar depois):");
 
-                <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginLeft: '10px' }}>
-                  <span className="text-xs font-black opacity-40 uppercase">Ajuste:</span>
-                  <select
-                    className="btn-secondary"
-                    style={{ background: 'rgba(255,255,255,0.01)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '5px 10px', borderRadius: '8px', cursor: 'pointer' }}
-                    value={fitMode}
-                    onChange={(e) => setFitMode(e.target.value as any)}
-                  >
-                    <option value="contain" style={{ background: '#111', color: 'white' }}>Ajustar</option>
-                    <option value="cover" style={{ background: '#111', color: 'white' }}>Preencher</option>
-                    <option value="stretch" style={{ background: '#111', color: 'white' }}>Estender</option>
-                  </select>
-                </div>
+                  if (!name) return;
+
+                  if (!storedMasterName) {
+                    // First time setting it - Save as the "password" name
+                    localStorage.setItem('quiz_master_name', name);
+                    setCurrentUser(name);
+                    localStorage.setItem('quiz_user', name);
+                    setView('config');
+                    alert(`✓ Nome do Mestre definido: "${name}". Você precisará digitar exatamente este nome para editar novamente.`);
+                  } else {
+                    // Validating against the first name ever typed
+                    if (name.toLowerCase() === storedMasterName.toLowerCase()) {
+                      setCurrentUser(storedMasterName);
+                      localStorage.setItem('quiz_user', storedMasterName);
+                      // If already in config, stay. If not, maybe go to config if they want.
+                      // Usually entering Master mode means they want to config.
+                      if (view !== 'config' && view !== 'playing') setView('config');
+                    } else {
+                      alert("❌ ACESSO NEGADO: Nome incorreto.");
+                    }
+                  }
+                }}
+                className="btn-secondary"
+                style={{ background: 'rgba(139,92,246,0.1)', color: 'var(--primary)', borderColor: 'var(--primary)', padding: '8px 15px' }}
+              >
+                <UserCheck size={18} /> CONFIG
+              </button>
+            ) : (
+              <button
+                title="Sair do Modo Mestre"
+                onClick={() => { if (confirm("Deseja sair da sessão do Mestre?")) { setCurrentUser(null); localStorage.removeItem('quiz_user'); setView('welcome'); } }}
+                className="btn-secondary"
+                style={{ background: 'rgba(251,191,36,0.1)', color: 'var(--yellow)', borderColor: 'var(--yellow)', padding: '8px 15px' }}
+              >
+                <LogOut size={18} /> {currentUser}
+              </button>
+            )}
+
+            {/* 2. PROJECTION CONTROLS - ALWAYS VISIBLE */}
+            <div style={{ display: 'flex', gap: '8px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '15px' }}>
+              <button
+                title="Abrir Projeção"
+                onClick={handleOpenProjection}
+                className="btn-projection"
+                style={{ padding: '8px 15px', fontSize: '0.85rem', background: projectionActive ? 'rgba(255,255,255,0.05)' : '' }}
+              >
+                <Monitor size={18} /> PROJETAR
+              </button>
+              {projectionActive && (
+                <button
+                  title="Fechar Projeção"
+                  onClick={handleStopProjection}
+                  className="btn-secondary"
+                  style={{ borderColor: 'var(--danger)', color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', padding: '8px 15px' }}
+                >
+                  PARAR
+                </button>
+              )}
+            </div>
+
+            {/* 3. MASTER TOOLS - EXPORT/IMPORT */}
+            {currentUser && (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '15px' }}>
+                <button title="Exportar Projeto" onClick={handleExport} className="btn-secondary" style={{ padding: '8px' }}><Download size={18} /></button>
+                <button title="Importar Projeto" onClick={handleImport} className="btn-secondary" style={{ padding: '8px' }}><Upload size={18} /></button>
+
+                <select
+                  className="btn-secondary"
+                  style={{ background: 'rgba(255,255,255,0.01)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '5px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.7rem' }}
+                  value={fitMode}
+                  onChange={(e) => setFitMode(e.target.value as any)}
+                >
+                  <option value="contain">CONTÊM</option>
+                  <option value="cover">PREENCHER</option>
+                  <option value="stretch">ESTENDER</option>
+                </select>
               </div>
             )}
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+
+            {/* 4. UTILITY CONTROLS */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               {projectionActive && (
                 <button
                   onClick={() => channel.postMessage({ type: 'GO_FULLSCREEN' })}
                   className="btn-primary"
-                  style={{ background: 'var(--yellow)', color: 'black', padding: '10px 20px', fontSize: '0.8rem' }}
+                  style={{ background: 'var(--yellow)', color: 'black', padding: '8px 15px', fontSize: '0.8rem', boxShadow: 'none' }}
                 >
-                  <Monitor size={16} /> TELÃO FS
+                  FS
                 </button>
               )}
 
-              {view !== 'welcome' && (
+              {view !== 'welcome' && !currentUser && (
                 <button
-                  onClick={() => {
-                    if (confirm("Deseja sair do jogo atual?")) setView('welcome');
-                  }}
+                  onClick={() => { if (confirm("Deseja sair do jogo atual?")) setView('welcome'); }}
                   className="btn-secondary"
-                  style={{ color: 'var(--danger)', border: 'none' }}
+                  style={{ color: 'var(--danger)', border: 'none', padding: '8px' }}
                 >
-                  <LogOut size={18} /> SAIR
+                  <LogOut size={18} />
                 </button>
               )}
             </div>
@@ -983,85 +1029,119 @@ function PlayingView({
           const isSelected = Object.values(groupAnswers).includes(i);
           return (
             <button
-              key={i} onClick={() => {
+              key={i}
+              onClick={() => {
                 if (showAnswer || isProjection || !activeGroupId) return;
-
                 const newGroupAnswers = { ...groupAnswers, [activeGroupId]: i };
                 setGroupAnswers(newGroupAnswers);
-
-                // Explicit save to history to avoid loop
                 setAnswersByQuestion((prev: any) => ({
                   ...prev,
                   [currentQuestionIndex]: { activeGroupId, groupAnswers: newGroupAnswers }
                 }));
               }}
               className={`answer-btn ${showAnswer ? (isCorrect ? 'correct' : 'opacity-20') : (isSelected ? 'border-primary' : '')} ${isProjection ? 'no-hover' : ''}`}
+              style={{
+                position: 'relative',
+                overflow: 'hidden',
+                height: isProjection ? 'auto' : '120px', // FIXED HEIGHT ON OPERATOR SCREEN
+                minHeight: isProjection ? '12vh' : 'auto'
+              }}
             >
-              <div className="team-badge" style={{ background: (showAnswer && isCorrect) ? 'var(--success)' : (isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.05)'), color: 'white', width: '45px', height: '45px', fontSize: '1.5rem' }}>{String.fromCharCode(65 + i)}</div>
-              <div style={{ flex: 1 }}>
-                <p className="text-large uppercase italic" style={{ fontSize: '2.2rem', color: 'white' }}>{ans}</p>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
-                  {Object.entries(groupAnswers).filter(([_, a]) => a === i).map(([gid]) => {
-                    const groupIndex = groups.findIndex((gr: any) => gr.id === gid);
-                    return (
-                      <div
-                        key={gid}
-                        style={{
-                          background: COLORS[groupIndex % COLORS.length],
-                          color: 'black',
-                          padding: '6px 14px',
-                          borderRadius: '10px',
-                          fontWeight: 900,
-                          fontSize: '0.8rem',
-                          boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-                          border: '2px solid white'
-                        }}
-                      >
-                        {groups[groupIndex]?.name[0]}
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="team-badge" style={{
+                background: (showAnswer && isCorrect) ? 'var(--success)' : (isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.05)'),
+                color: 'white', width: isProjection ? '60px' : '50px', height: isProjection ? '60px' : '50px', fontSize: isProjection ? '2rem' : '1.5rem', flexShrink: 0
+              }}>
+                {String.fromCharCode(65 + i)}
               </div>
-              {showAnswer && isCorrect && <PartyPopper size={50} color="var(--success)" />}
+
+              <div style={{ flex: 1, paddingRight: '15px' }}>
+                <p className="text-large uppercase italic" style={{
+                  fontSize: isProjection ? '2.2rem' : '1.5rem', // SLIGHTLY SMALLER ON OPERATOR SCREEN
+                  color: 'white',
+                  margin: 0,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  lineHeight: 1.2
+                }}>{ans}</p>
+              </div>
+
+              {/* TEAM SELECTION INDICATORS - ABSOLUTE TO PREVENT GROWTH */}
+              <div style={{ position: 'absolute', bottom: '8px', right: '10px', display: 'flex', gap: '5px' }}>
+                {Object.entries(groupAnswers).filter(([_, a]) => a === i).map(([gid]) => {
+                  const groupIndex = groups.findIndex((gr: any) => gr.id === gid);
+                  return (
+                    <motion.div
+                      key={gid}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      style={{
+                        background: COLORS[groupIndex % COLORS.length],
+                        color: 'black',
+                        width: isProjection ? '36px' : '28px',
+                        height: isProjection ? '36px' : '28px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 900,
+                        fontSize: '0.7rem',
+                        boxShadow: '0 4px 10px rgba(0,0,0,0.4)',
+                        border: '2px solid white'
+                      }}
+                    >
+                      {groups[groupIndex]?.name[0]}
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {showAnswer && isCorrect && (
+                <div style={{ position: 'absolute', right: '8px', top: '10px' }}>
+                  <PartyPopper size={isProjection ? 50 : 35} color="var(--success)" style={{ opacity: 0.8 }} />
+                </div>
+              )}
             </button>
           );
         })}
       </div>
 
-      <div className="flex-center" style={{ marginBottom: '10px', gap: '20px' }}>
-        {!isProjection && (
-          <button onClick={onPrevQuestion} className="btn-secondary" style={{ padding: '15px 30px' }}>VOLTAR</button>
-        )}
+      <div className="flex-center" style={{ marginTop: '15px', gap: '15px' }}>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          {!isProjection && (
+            <button onClick={onPrevQuestion} className="btn-secondary" style={{ padding: '12px 25px', fontWeight: 900, fontSize: '0.9rem' }}>ANTERIOR</button>
+          )}
 
-        {!showAnswer ? (
-          <button
-            onClick={() => !isProjection && (Object.keys(groupAnswers).length > 0 ? handleFinish() : alert("Escolha uma resposta!"))}
-            className={`btn-primary ${isProjection ? 'no-hover' : ''}`}
-            style={{ fontSize: isProjection ? '1.8rem' : '2.5rem', padding: isProjection ? '10px 30px' : '15px 50px', cursor: isProjection ? 'default' : 'pointer' }}
-          >
-            REVELAR RESPOSTA
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            {!isProjection && (
-              <button
-                onClick={handleUnreveal}
-                className="btn-secondary"
-                style={{ padding: '15px 30px', borderColor: 'var(--yellow)', color: 'var(--yellow)', fontWeight: 900 }}
-              >
-                CORRIGIR (VOLTAR)
-              </button>
-            )}
+          {!showAnswer ? (
             <button
-              onClick={() => !isProjection && onNextQuestion()}
+              onClick={() => !isProjection && (Object.keys(groupAnswers).length > 0 ? handleFinish() : alert("Escolha uma resposta!"))}
               className={`btn-primary ${isProjection ? 'no-hover' : ''}`}
-              style={{ fontSize: isProjection ? '1.2rem' : '1.5rem', padding: isProjection ? '10px 25px' : '15px 40px', cursor: isProjection ? 'default' : 'pointer' }}
+              style={{ fontSize: isProjection ? '1.8rem' : '1.8rem', padding: '12px 50px', cursor: isProjection ? 'default' : 'pointer', minWidth: '300px' }}
             >
-              {currentQuestionIndex === questions.length - 1 ? 'RESULTADO FINAL 🏁' : 'PRÓXIMO DESAFIO'} {!isProjection && <ChevronRight size={30} />}
+              REVELAR RESPOSTA
             </button>
-          </div>
-        )}
+          ) : (
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+              {!isProjection && (
+                <button
+                  onClick={handleUnreveal}
+                  className="btn-secondary"
+                  style={{ padding: '12px 25px', borderColor: 'var(--yellow)', color: 'var(--yellow)', fontWeight: 900, fontSize: '0.9rem' }}
+                >
+                  CORRIGIR
+                </button>
+              )}
+              <button
+                onClick={() => !isProjection && onNextQuestion()}
+                className={`btn-primary ${isProjection ? 'no-hover' : ''}`}
+                style={{ fontSize: isProjection ? '1.2rem' : '1.4rem', padding: '12px 40px', cursor: isProjection ? 'default' : 'pointer' }}
+              >
+                {currentQuestionIndex === questions.length - 1 ? 'RESULTADO FINAL 🏁' : 'PRÓXIMO DESAFIO'} {!isProjection && <ChevronRight size={25} />}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );
