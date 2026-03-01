@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, ChevronRight, LogOut, Star, PartyPopper,
   Rocket, Download, Upload, RotateCcw,
-  UserCheck, Trash2, Plus, FileSpreadsheet, Monitor
+  UserCheck, Trash2, Plus, FileSpreadsheet, Monitor,
+  MousePointer2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import * as XLSX from 'xlsx';
@@ -797,12 +798,21 @@ export default function App() {
 
       {/* PROJECTION OVERLAYS */}
       {isProjection && showFullscreenOverlay && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 99999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <Monitor size={100} color="var(--primary)" className="mb-20" />
-          <h1 className="text-huge title-gradient italic uppercase mb-20 text-center">Modo Projeção Profissional</h1>
-          <p className="text-large mb-40 opacity-70">O mestre solicitou Tela Cheia no telão.</p>
+        <div
+          onClick={() => {
+            if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen()
+                .then(() => setShowFullscreenOverlay(false))
+                .catch(() => { });
+            }
+          }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 99999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        >
+          <MousePointer2 size={120} color="var(--primary)" style={{ animation: 'bounce 2s infinite', filter: 'drop-shadow(0 0 30px var(--primary))', marginBottom: '40px' }} />
+          <h1 className="text-huge title-gradient italic uppercase mb-20 text-center">Modo Projeção Fullscreen</h1>
+          <p className="text-large mb-40 opacity-70">Aplicação web para entrar em tela cheia, clique aqui</p>
           <div className="btn-primary" style={{ padding: '30px 60px', fontSize: '2rem', animation: 'pulse 2s infinite' }}>
-            PRESSIONE [ ENTER ] AGORA
+            PRESSIONE AQUI
           </div>
         </div>
       )}
