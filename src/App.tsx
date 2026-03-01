@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, ChevronRight, LogOut, Star, PartyPopper,
   Rocket, Download, Upload, RotateCcw,
-  UserCheck, Trash2, Plus, FileSpreadsheet
+  UserCheck, Trash2, Plus, FileSpreadsheet, Monitor
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import * as XLSX from 'xlsx';
+
+// --- SHARED CHANNEL ---
+const channel = new BroadcastChannel('quiz_projection');
+const isProjection = new URLSearchParams(window.location.search).get('projection') === 'true';
 
 // --- TYPES ---
 interface Question {
@@ -39,6 +43,13 @@ export default function App() {
   const [rankingTitle, setRankingTitle] = useState('GRANDE FINAL MISSIONÁRIA');
   const [rankingSubtitle, setRankingSubtitle] = useState('Ranking dos Times');
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [projectionActive, setProjectionActive] = useState(false);
+  const [screenDetails, setScreenDetails] = useState<any>(null);
+  const [showScreenModal, setShowScreenModal] = useState(false);
+
+  // --- PLAYING STATE (Moved to App for Sync) ---
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [groupAnswers, setGroupAnswers] = useState<{ [groupId: string]: number }>({});
 
   useEffect(() => {
     const savedUser = localStorage.getItem('quiz_user');
@@ -56,6 +67,96 @@ export default function App() {
       } catch (e) { console.error(e); }
     }
   }, []);
+
+  // --- SYNC REF (To avoid stale closures in listener) ---
+  const lastState = useRef({
+    view, gameTitle, questions, groups, currentQuestionIndex,
+    showAnswer, gamePoints, rankingTitle, rankingSubtitle,
+    activeGroupId, groupAnswers
+  });
+
+  useEffect(() => {
+    lastState.current = {
+      view, gameTitle, questions, groups, currentQuestionIndex,
+      showAnswer, gamePoints, rankingTitle, rankingSubtitle,
+      activeGroupId, groupAnswers
+    };
+  }, [view, gameTitle, questions, groups, currentQuestionIndex, showAnswer, gamePoints, rankingTitle, rankingSubtitle, activeGroupId, groupAnswers]);
+
+  // 1. MASTER: Push state on changes (with deduplication to prevent flicker)
+  const lastSent = useRef<string>('');
+  useEffect(() => {
+    if (!isProjection) {
+      const stateStr = JSON.stringify(lastState.current);
+      if (stateStr !== lastSent.current) {
+        channel.postMessage({ type: 'SYNC_STATE', payload: lastState.current });
+        lastSent.current = stateStr;
+      }
+    }
+  }, [view, gameTitle, questions, groups, currentQuestionIndex, showAnswer, gamePoints, rankingTitle, rankingSubtitle, activeGroupId, groupAnswers, isProjection]);
+
+  // 2. REGISTRATION: Setup listeners once (STABLE)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const { type, payload } = event.data;
+
+      if (isProjection) {
+        if (type === 'SYNC_STATE') {
+          const s = lastState.current;
+          // Batch updates only if changed to prevent render storms
+          if (payload.view !== s.view) setView(payload.view);
+          if (payload.gameTitle !== s.gameTitle) setGameTitle(payload.gameTitle);
+          if (payload.currentQuestionIndex !== s.currentQuestionIndex) setCurrentQuestionIndex(payload.currentQuestionIndex);
+          if (payload.showAnswer !== s.showAnswer) setShowAnswer(payload.showAnswer);
+          if (payload.gamePoints !== s.gamePoints) setGamePoints(payload.gamePoints);
+          if (payload.rankingTitle !== s.rankingTitle) setRankingTitle(payload.rankingTitle);
+          if (payload.rankingSubtitle !== s.rankingSubtitle) setRankingSubtitle(payload.rankingSubtitle);
+          if (payload.activeGroupId !== s.activeGroupId) setActiveGroupId(payload.activeGroupId);
+
+          // Deep checks only for arrays/objects
+          if (JSON.stringify(payload.questions) !== JSON.stringify(s.questions)) setQuestions(payload.questions);
+          if (JSON.stringify(payload.groups) !== JSON.stringify(s.groups)) setGroups(payload.groups);
+          if (JSON.stringify(payload.groupAnswers) !== JSON.stringify(s.groupAnswers)) setGroupAnswers(payload.groupAnswers);
+        } else if (type === 'CELEBRATE') {
+          celebration(); // Projection also celebrates
+        } else if (type === 'CLOSE_PROJECTION') {
+          window.close();
+        } else if (type === 'PING_PROJECTION' || type === 'REQUEST_STATE') {
+          channel.postMessage({ type: 'PROJECTION_ALIVE' });
+        }
+      } else {
+        // MASTER LISTENERS
+        if (type === 'REQUEST_STATE') {
+          setProjectionActive(true);
+          channel.postMessage({ type: 'SYNC_STATE', payload: lastState.current });
+        } else if (type === 'PROJECTION_ALIVE') {
+          setProjectionActive(true);
+        }
+      }
+    };
+
+    channel.addEventListener('message', handleMessage);
+
+    // Initial actions
+    if (isProjection) {
+      channel.postMessage({ type: 'REQUEST_STATE' });
+    } else {
+      channel.postMessage({ type: 'PING_PROJECTION' });
+    }
+
+    // Fullscreen trigger (attached once)
+    const autoFs = () => {
+      if (isProjection && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => { });
+      }
+    };
+    if (isProjection) window.addEventListener('click', autoFs);
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      window.removeEventListener('click', autoFs);
+    };
+  }, [isProjection]); // Re-run only if role changes (never)
 
   const saveToLocal = (title?: string, qs?: Question[], gs?: Group[], pts?: number, rTitle?: string, rSub?: string) => {
     const data = {
@@ -155,6 +256,9 @@ export default function App() {
   };
 
   const celebration = () => {
+    // Master sends trigger to projection
+    if (!isProjection) channel.postMessage({ type: 'CELEBRATE' });
+
     const duration = 15 * 1000;
     const animationEnd = Date.now() + duration;
     const interval: any = setInterval(() => {
@@ -164,39 +268,164 @@ export default function App() {
     }, 250);
   };
 
-  return (
-    <div className="app-root">
-      <nav>
-        <div className="clickable" style={{ display: 'flex', alignItems: 'center', gap: '15px' }} onClick={() => setView('welcome')}>
-          <Trophy size={32} color="var(--yellow)" fill="var(--yellow)" />
-          <h1 className="nav-title">{gameTitle}</h1>
-        </div>
+  const handleOpenProjection = async () => {
+    try {
+      // @ts-ignore
+      if ('getScreenDetails' in window || window.getScreenDetails) {
+        // @ts-ignore
+        const details = await window.getScreenDetails();
+        setScreenDetails(details);
+        setShowScreenModal(true);
+        return;
+      }
+    } catch (e) {
+      console.warn("Window Management API denied", e);
+    }
 
-        <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
-          {currentUser && (
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button title="Exportar" onClick={handleExport} className="btn-secondary"><Download size={18} /></button>
-              <button title="Importar" onClick={handleImport} className="btn-secondary"><Upload size={18} /></button>
-            </div>
-          )}
-          <button
-            className="btn-secondary"
-            style={{ borderColor: 'var(--primary)', color: 'white' }}
-            onClick={() => {
-              const name = prompt("Nome do Mestre:");
-              if (name) { setCurrentUser(name); localStorage.setItem('quiz_user', name); }
-              else { setCurrentUser(null); localStorage.removeItem('quiz_user'); }
-            }}
-          >
-            {currentUser ? `MESTRE: ${currentUser}` : 'ATIVAR MESTRE'}
-          </button>
-          {view !== 'welcome' && (
-            <button onClick={() => setView('welcome')} className="btn-secondary" style={{ color: 'var(--danger)', border: 'none' }}>
-              <LogOut size={18} /> SAIR
-            </button>
-          )}
+    // Fallback if API missing or denied
+    actualOpen(null);
+  };
+
+  const actualOpen = (screen: any) => {
+    const url = window.location.origin + window.location.pathname + '?projection=true';
+    const features = 'popup=yes,menubar=no,toolbar=no,location=no,status=no,directories=no,resizable=yes,scrollbars=no';
+
+    let specs = features;
+    if (screen) {
+      specs += `,left=${screen.availLeft},top=${screen.availTop},width=${screen.availWidth},height=${screen.availHeight}`;
+    }
+
+    const win = window.open(url, 'quiz_projection', specs);
+    if (win) {
+      setProjectionActive(true);
+      setShowScreenModal(false);
+    } else {
+      alert("O navegador bloqueou o popup! Permita janelas e tente novamente.");
+    }
+  };
+
+  const testScreen = (screen: any) => {
+    const specs = `left=${screen.availLeft + 100},top=${screen.availTop + 100},width=600,height=400,menubar=no,toolbar=no`;
+    const win = window.open('', 'test_screen', specs);
+    if (win) {
+      win.document.body.style.background = "var(--primary, #8B5CF6)";
+      win.document.body.style.display = "flex";
+      win.document.body.style.alignItems = "center";
+      win.document.body.style.justifyContent = "center";
+      win.document.body.style.color = "white";
+      win.document.body.style.fontFamily = "sans-serif";
+      win.document.body.innerHTML = `
+        <div style="text-align:center">
+          <h1 style="font-size:3rem;margin:0">TELA DETECTADA! ✅</h1>
+          <p style="font-size:1.5rem">A projeção será aberta neste monitor.</p>
         </div>
-      </nav>
+      `;
+      setTimeout(() => win.close(), 3000);
+    }
+  };
+
+  // handleStopProjection was removed as it was unused and causing build errors.
+  // The projection window is controlled by the user or closed via window.close() on message.
+
+  return (
+    <div className={`app-root ${isProjection ? 'projection-mode' : ''}`}>
+      {!isProjection && (
+        <nav>
+          <div className="clickable" style={{ display: 'flex', alignItems: 'center', gap: '15px' }} onClick={() => setView('welcome')}>
+            <Trophy size={32} color="var(--yellow)" fill="var(--yellow)" />
+            <h1 className="nav-title">{gameTitle}</h1>
+          </div>
+
+          <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
+            {questions.length > 0 && view !== 'playing' && view !== 'ranking' && (
+              <button title="Projetar em Segunda Tela" onClick={handleOpenProjection} className="btn-projection">
+                <Monitor size={18} /> {projectionActive ? 'AJUSTAR PROJEÇÃO' : 'PROJETAR'}
+              </button>
+            )}
+            {currentUser && view !== 'playing' && view !== 'ranking' && (
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button title="Exportar" onClick={handleExport} className="btn-secondary"><Download size={18} /></button>
+                <button title="Importar" onClick={handleImport} className="btn-secondary"><Upload size={18} /></button>
+              </div>
+            )}
+            <button
+              className="btn-secondary"
+              style={{ borderColor: 'var(--primary)', color: 'white' }}
+              onClick={() => {
+                const name = prompt("Nome do Mestre:");
+                if (name) { setCurrentUser(name); localStorage.setItem('quiz_user', name); }
+                else { setCurrentUser(null); localStorage.removeItem('quiz_user'); }
+              }}
+            >
+              {currentUser ? `MESTRE: ${currentUser}` : 'ATIVAR MESTRE'}
+            </button>
+            {view !== 'welcome' && (
+              <button
+                onClick={() => {
+                  if (confirm("Deseja sair do jogo atual?")) {
+                    setView('welcome');
+                  }
+                }}
+                className="btn-secondary"
+                style={{ color: 'var(--danger)', border: 'none' }}
+              >
+                <LogOut size={18} /> SAIR
+              </button>
+            )}
+          </div>
+        </nav>
+      )}
+
+      {isProjection && (
+        <AnimatePresence>
+          {!document.fullscreenElement && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={(e) => {
+                const target = e.currentTarget;
+                document.documentElement.requestFullscreen().then(() => {
+                  target.style.display = 'none';
+                }).catch(() => {
+                  alert("Clique novamente para ativar o modo tela cheia!");
+                });
+              }}
+              className="flex-center"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 10000,
+                background: '#05070a',
+                cursor: 'pointer',
+                padding: '40px'
+              }}
+            >
+              <div className="glass-card flex-center" style={{ border: '4px solid var(--primary)', padding: '80px', maxWidth: '900px', background: '#0a0f1a' }}>
+                <Monitor size={120} color="var(--primary)" style={{ marginBottom: '40px' }} />
+                <h1 className="text-huge title-gradient uppercase italic mb-20" style={{ fontSize: '4.5rem' }}>PRONTO PARA PROJETAR?</h1>
+                <p style={{ marginBottom: '50px', fontSize: '1.5rem', opacity: 0.8 }}>O conteúdo será exibido em 1920x1080 (Full HD) sem barras do navegador.</p>
+                <button className="btn-primary" style={{ fontSize: '3rem', padding: '50px 100px', borderRadius: '40px', boxShadow: '0 0 50px var(--primary-glow)' }}>
+                  INICIAR APRESENTAÇÃO 🚀
+                </button>
+                <p style={{ marginTop: '50px', opacity: 0.4, letterSpacing: '4px', fontWeight: 900 }} className="uppercase">
+                  Clique no botão acima para ativar o modo tela cheia nativo
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
+
+      {isProjection && (
+        <button
+          onClick={() => document.documentElement.requestFullscreen()}
+          className="btn-primary"
+          style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9999, opacity: 0.05, padding: '10px' }}
+        >
+          <Monitor size={16} /> [FS]
+        </button>
+      )}
 
       <main className="container">
         <AnimatePresence mode="wait">
@@ -207,17 +436,19 @@ export default function App() {
                 <h1 className="text-huge title-gradient uppercase italic mb-20">{gameTitle}</h1>
                 <p style={{ letterSpacing: '8px', opacity: 0.4, fontWeight: 900 }} className="uppercase mb-40">The Missionary Experience</p>
               </div>
-              <button
-                onClick={() => {
-                  if (currentUser) setView('config');
-                  else if (questions.length > 0) setView('playing');
-                  else alert("Por favor, peça ao Mestre para carregar as perguntas!");
-                }}
-                className="btn-primary"
-                style={{ fontSize: '3rem', padding: '40px 80px' }}
-              >
-                INICIAR JOGO 🚀
-              </button>
+              {!isProjection && (
+                <button
+                  onClick={() => {
+                    if (currentUser) setView('config');
+                    else if (questions.length > 0) setView('playing');
+                    else alert("Por favor, peça ao Mestre para carregar as perguntas!");
+                  }}
+                  className="btn-primary"
+                  style={{ fontSize: '3rem', padding: '40px 80px' }}
+                >
+                  INICIAR JOGO 🚀
+                </button>
+              )}
             </motion.div>
           )}
 
@@ -354,6 +585,9 @@ export default function App() {
             <PlayingView
               key="playing"
               currentQuestionIndex={currentQuestionIndex} questions={questions} groups={groups} showAnswer={showAnswer}
+              activeGroupId={activeGroupId} setActiveGroupId={setActiveGroupId}
+              groupAnswers={groupAnswers} setGroupAnswers={setGroupAnswers}
+              isProjection={isProjection}
               onFinishQuestion={(fgs: Group[]) => { setGroups(fgs); saveToLocal(gameTitle, questions, fgs); setShowAnswer(true); }}
               onNextQuestion={() => {
                 if (currentQuestionIndex < questions.length - 1) { setCurrentQuestionIndex(prev => prev + 1); setShowAnswer(false); }
@@ -364,8 +598,8 @@ export default function App() {
 
           {view === 'ranking' && (
             <motion.div key="ranking" initial="initial" animate="enter" exit="exit" variants={pageVariants} className="flex-center">
-              <Trophy size={250} color="var(--yellow)" style={{ filter: 'drop-shadow(0 0 80px rgba(251,191,36,0.5))', marginBottom: '40px' }} />
-              <h1 className="text-huge title-gradient uppercase italic mb-40">{rankingTitle}</h1>
+              <Trophy size={isProjection ? 150 : 250} color="var(--yellow)" style={{ filter: 'drop-shadow(0 0 80px rgba(251,191,36,0.5))', marginBottom: isProjection ? '20px' : '40px' }} />
+              <h1 className={`${isProjection ? 'text-giant' : 'text-huge'} title-gradient uppercase italic mb-40 text-center`}>{rankingTitle}</h1>
               <div className="scoreboard-box">
                 <div className="scoreboard-header-cell">🏅 {rankingSubtitle} 🎖️</div>
                 <div className="scoreboard-grid">
@@ -377,37 +611,66 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '30px', marginTop: '60px' }}>
-                <button onClick={() => setView('welcome')} className="btn-secondary" style={{ fontSize: '1.5rem', padding: '20px 40px' }}>Menu Início</button>
-                <button onClick={() => {
-                  if (confirm("ISSO APAGARÁ TUDO!")) {
-                    resetAllPoints();
-                    setCurrentQuestionIndex(0);
-                    setShowAnswer(false);
-                    setView('welcome');
-                  }
-                }}
-                  className="btn-primary"
-                  style={{ fontSize: '3rem', padding: '40px 80px' }}
-                >RECOMECAR TUDO 🔄</button>
-              </div>
+              {!isProjection && (
+                <div style={{ display: 'flex', gap: '30px', marginTop: '60px' }}>
+                  <button onClick={() => setView('welcome')} className="btn-secondary" style={{ fontSize: '1.5rem', padding: '20px 40px' }}>Menu Início</button>
+                  <button onClick={() => {
+                    if (confirm("ISSO APAGARÁ TUDO!")) {
+                      resetAllPoints();
+                      setCurrentQuestionIndex(0);
+                      setShowAnswer(false);
+                      setView('welcome');
+                    }
+                  }}
+                    className="btn-primary"
+                    style={{ fontSize: '3rem', padding: '40px 80px' }}
+                  >RECOMECAR TUDO 🔄</button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
       </main>
+      {showScreenModal && screenDetails && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div className="glass-card" style={{ maxWidth: '600px', width: '100%', border: '2px solid var(--primary)', padding: '40px' }}>
+            <h2 className="text-large title-gradient mb-20 italic">ONDE DESEJA PROJETAR?</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {screenDetails.screens.map((s: any, i: number) => (
+                <div key={i} className="glass-card" style={{ background: 'rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', margin: 0 }}>
+                  <div style={{ textAlign: 'left' }}>
+                    <p style={{ fontWeight: 900, fontSize: '1.2rem' }}>MONITOR {i + 1} {s.isPrimary ? '(PRINCIPAL)' : ''}</p>
+                    <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>{s.label || `Display ${i + 1}`} ({s.width}x{s.height})</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => testScreen(s)} className="btn-secondary" style={{ padding: '4px 10px', fontSize: '0.7rem' }}>TESTAR</button>
+                    <button onClick={() => actualOpen(s)} className="btn-primary" style={{ padding: '8px 25px' }}>USAR</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowScreenModal(false)} className="btn-secondary" style={{ marginTop: '30px', width: '100%' }}>CANCELAR</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function PlayingView({ currentQuestionIndex, questions, groups, showAnswer, onFinishQuestion, onNextQuestion }: any) {
+function PlayingView({
+  currentQuestionIndex, questions, groups, showAnswer,
+  activeGroupId, setActiveGroupId,
+  groupAnswers, setGroupAnswers,
+  isProjection, onFinishQuestion, onNextQuestion
+}: any) {
   const q = questions[currentQuestionIndex];
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  const [groupAnswers, setGroupAnswers] = useState<{ [groupId: string]: number }>({});
 
   useEffect(() => {
-    setGroupAnswers({});
-    setActiveGroupId(null);
-  }, [currentQuestionIndex]);
+    if (!isProjection) {
+      setGroupAnswers({});
+      setActiveGroupId(null);
+    }
+  }, [currentQuestionIndex, isProjection]);
 
   const handleFinish = () => {
     const finalGroups = groups.map((g: Group) => (groupAnswers[g.id] === q.correctIndex ? { ...g, score: g.score + (q.points || 1) } : g));
@@ -416,15 +679,15 @@ function PlayingView({ currentQuestionIndex, questions, groups, showAnswer, onFi
 
   return (
     <motion.div initial="initial" animate="enter" exit="exit" variants={pageVariants} className="playing-container">
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', marginBottom: '30px', width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', flexWrap: 'nowrap', width: '100%', overflowX: 'auto', paddingBottom: '10px' }}>
+      <div className="playing-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', marginBottom: '30px', width: '100%' }}>
+        <div className="teams-list" style={{ display: 'flex', justifyContent: 'center', gap: '15px', flexWrap: 'nowrap', width: '100%', overflowX: 'auto', paddingBottom: '10px' }}>
           <div className="text-giant title-gradient shrink-0 italic" style={{ fontSize: '3rem', marginRight: '40px' }}>{currentQuestionIndex + 1}/{questions.length}</div>
           {groups.map((g: any, i: number) => {
             const isActive = activeGroupId === g.id;
             return (
               <div
-                key={g.id} onClick={() => !showAnswer && setActiveGroupId(g.id)}
-                className="glass-card clickable"
+                key={g.id} onClick={() => !showAnswer && !isProjection && setActiveGroupId(g.id)}
+                className={`glass-card team-card ${!isProjection ? 'clickable' : ''}`}
                 style={{ margin: 0, padding: '15px', minWidth: '220px', borderBottom: `8px solid ${isActive ? 'var(--success)' : COLORS[i % COLORS.length]}`, background: isActive ? 'rgba(34,197,94,0.1)' : 'var(--card-bg)' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -452,8 +715,8 @@ function PlayingView({ currentQuestionIndex, questions, groups, showAnswer, onFi
           const isSelected = Object.values(groupAnswers).includes(i);
           return (
             <button
-              key={i} onClick={() => !showAnswer && activeGroupId && setGroupAnswers({ ...groupAnswers, [activeGroupId]: i })}
-              className={`answer-btn ${showAnswer ? (isCorrect ? 'correct' : 'opacity-20') : (isSelected ? 'border-primary' : '')}`}
+              key={i} onClick={() => !showAnswer && !isProjection && activeGroupId && setGroupAnswers({ ...groupAnswers, [activeGroupId]: i })}
+              className={`answer-btn ${showAnswer ? (isCorrect ? 'correct' : 'opacity-20') : (isSelected ? 'border-primary' : '')} ${isProjection ? 'no-hover' : ''}`}
             >
               <div className="team-badge" style={{ background: showAnswer && isCorrect ? 'var(--success)' : (isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.05)'), color: 'white', width: '45px', height: '45px', fontSize: '1.5rem' }}>{String.fromCharCode(65 + i)}</div>
               <div style={{ flex: 1 }}>
@@ -489,10 +752,20 @@ function PlayingView({ currentQuestionIndex, questions, groups, showAnswer, onFi
 
       <div className="flex-center" style={{ marginBottom: '10px' }}>
         {!showAnswer ? (
-          <button onClick={() => Object.keys(groupAnswers).length > 0 ? handleFinish() : alert("Escolha uma resposta!")} className="btn-primary" style={{ fontSize: '2.5rem', padding: '15px 50px' }}>REVELAR RESPOSTA</button>
+          <button
+            onClick={() => !isProjection && (Object.keys(groupAnswers).length > 0 ? handleFinish() : alert("Escolha uma resposta!"))}
+            className={`btn-primary ${isProjection ? 'no-hover' : ''}`}
+            style={{ fontSize: isProjection ? '1.8rem' : '2.5rem', padding: isProjection ? '10px 30px' : '15px 50px', cursor: isProjection ? 'default' : 'pointer' }}
+          >
+            REVELAR RESPOSTA
+          </button>
         ) : (
-          <button onClick={onNextQuestion} className="btn-primary" style={{ fontSize: '1.5rem', padding: '15px 40px' }}>
-            {currentQuestionIndex === questions.length - 1 ? 'RESULTADO FINAL 🏁' : 'PRÓXIMO DESAFIO'} <ChevronRight size={30} />
+          <button
+            onClick={() => !isProjection && onNextQuestion()}
+            className={`btn-primary ${isProjection ? 'no-hover' : ''}`}
+            style={{ fontSize: isProjection ? '1.2rem' : '1.5rem', padding: isProjection ? '10px 25px' : '15px 40px', cursor: isProjection ? 'default' : 'pointer' }}
+          >
+            {currentQuestionIndex === questions.length - 1 ? 'RESULTADO FINAL 🏁' : 'PRÓXIMO DESAFIO'} {!isProjection && <ChevronRight size={30} />}
           </button>
         )}
       </div>

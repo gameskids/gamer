@@ -298,3 +298,199 @@ nav {
 .full-width {
   width: 100%;
 }
+
+/* --- PROJECTION MODE --- */
+.projection-mode {
+  background: black !important;
+  overflow: hidden;
+  touch-action: none;
+  /* Reset scaling for high DPI displays */
+  image-rendering: -webkit-optimize-contrast;
+  -webkit-text-size-adjust: 100%;
+}
+
+.projection-mode .container {
+  padding: 0;
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  overflow: hidden;
+  background: black;
+  position: fixed;
+  top: 0;
+  left: 0;
+  /* GPU acceleration to prevent flicker */
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.projection-mode main {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2vh 0;
+  /* Stable layer */
+  transform: translateZ(0);
+}
+
+.projection-mode .glass-card,
+.projection-mode .question-box,
+.projection-mode .answer-btn {
+  /* Prevent layout shaking on text changes */
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.projection-mode .glass-card {
+  border: none;
+  background: rgba(15, 23, 42, 0.4);
+  box-shadow: none;
+  width: 100%;
+}
+
+.projection-mode .nav-title {
+  font-size: 2.8rem;
+}
+
+.projection-mode .text-giant {
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem);
+}
+
+.projection-mode .text-huge {
+  font-size: clamp(1.8rem, 4.2vw, 3.4rem);
+  line-height: 1.15;
+  max-width: 75vw;
+  text-align: center;
+}
+
+.projection-mode .text-large {
+  font-size: clamp(1.4rem, 2.8vw, 2.2rem);
+}
+
+.projection-mode .answer-btn {
+  padding: 1.8vh 2.5vw;
+  border-radius: 30px;
+  min-height: 11vh;
+  border-width: 3px;
+  font-size: 1.8rem;
+}
+
+.projection-mode .team-badge {
+  width: 70px;
+  height: 70px;
+  font-size: 2.5rem;
+  border-radius: 18px;
+}
+
+.projection-mode .question-box {
+  padding: 2.5vh 3.5vw;
+  border-radius: 50px;
+  margin-bottom: 1.5vh;
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: 0 0 100px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  max-height: 32vh;
+}
+
+.projection-mode .scoreboard-box {
+  border-width: 8px;
+  margin: 1vh 0;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  width: 80%;
+}
+
+.projection-mode .scoreboard-grid {
+  flex: 1;
+  gap: 0;
+}
+
+.projection-mode .scoreboard-item {
+  font-size: 3rem;
+  padding: 3vh 4vw;
+}
+
+.projection-mode .scoreboard-item.pts {
+  font-size: 4rem;
+}
+
+.projection-mode .scoreboard-header-cell {
+  font-size: 2.2rem;
+  padding: 2vh;
+}
+
+.projection-mode .playing-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 5vh 5vw;
+  width: 100%;
+  height: 100%;
+}
+
+.projection-mode .answer-grid {
+  gap: 2vh 2vw;
+  grid-template-rows: repeat(2, 1fr);
+  max-height: 32vh;
+  width: 92%;
+  margin: 0 auto;
+}
+
+.projection-mode .playing-header {
+  margin-bottom: 0.1vh !important;
+  padding: 0 5vw;
+}
+
+.projection-mode .teams-list {
+  padding-bottom: 0.1vh !important;
+  gap: 1.2vw !important;
+}
+
+.projection-mode .team-card {
+  min-width: 130px !important;
+  padding: 5px !important;
+  border-bottom-width: 3px !important;
+}
+
+.projection-mode .no-hover {
+  pointer-events: none;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.btn-projection {
+  background: var(--accent);
+  color: black;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.btn-projection:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+}
