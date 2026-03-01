@@ -98,11 +98,12 @@ export default function App() {
   const [gamePoints, setGamePoints] = useState(1);
   const [rankingTitle, setRankingTitle] = useState('GRANDE FINAL MISSIONÁRIA');
   const [rankingSubtitle, setRankingSubtitle] = useState('Ranking dos Times');
+  const [gameSubtitle, setGameSubtitle] = useState('The Missionary Experience');
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [projectionActive, setProjectionActive] = useState(false);
   const [screenDetails, setScreenDetails] = useState<any>(null);
   const [showScreenModal, setShowScreenModal] = useState(false);
-  const [showFullscreenOverlay, setShowFullscreenOverlay] = useState(false); // New for manual FS trigger
+  const [showFullscreenOverlay, setShowFullscreenOverlay] = useState(false);
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [groupAnswers, setGroupAnswers] = useState<{ [groupId: string]: number }>({});
@@ -248,12 +249,13 @@ export default function App() {
     if (savedGame) {
       try {
         const data = JSON.parse(savedGame);
-        setGameTitle(data.title || 'ACERTE A RESPOSTA');
-        setQuestions(data.questions || []);
-        setGroups(data.groups || []);
-        setGamePoints(data.points || 1);
-        setRankingTitle(data.rankingTitle || 'GRANDE FINAL MISSIONÁRIA');
-        setRankingSubtitle(data.rankingSubtitle || 'Ranking dos Times');
+        if (data.title) setGameTitle(data.title);
+        if (data.subtitle) setGameSubtitle(data.subtitle);
+        if (data.questions) setQuestions(data.questions);
+        if (data.groups) setGroups(data.groups);
+        if (data.points) setGamePoints(data.points);
+        if (data.rankingTitle) setRankingTitle(data.rankingTitle);
+        if (data.rankingSubtitle) setRankingSubtitle(data.rankingSubtitle);
       } catch (e) { console.error(e); }
     }
   }, []);
@@ -360,9 +362,10 @@ export default function App() {
     return () => channel.removeEventListener('message', handleMessage);
   }, [isProjection, celebration]);
 
-  const saveToLocal = (title?: string, qs?: Question[], gs?: Group[], pts?: number, rTitle?: string, rSub?: string) => {
+  const saveToLocal = (title?: string, qs?: Question[], gs?: Group[], pts?: number, rTitle?: string, rSub?: string, sub?: string) => {
     const data = {
       title: title ?? gameTitle,
+      subtitle: sub ?? gameSubtitle,
       questions: qs ?? questions,
       groups: gs ?? groups,
       points: pts ?? gamePoints,
@@ -399,10 +402,12 @@ export default function App() {
       reader.onload = (event: any) => {
         try {
           const data = JSON.parse(event.target.result);
-          setGameTitle(data.title); setQuestions(data.questions); setGroups(data.groups); setGamePoints(data.points || 1);
+          setGameTitle(data.title);
+          setGameSubtitle(data.subtitle || 'The Missionary Experience');
+          setQuestions(data.questions); setGroups(data.groups); setGamePoints(data.points || 1);
           setRankingTitle(data.rankingTitle || 'GRANDE FINAL MISSIONÁRIA');
           setRankingSubtitle(data.rankingSubtitle || 'Ranking dos Times');
-          saveToLocal(data.title, data.questions, data.groups, data.points, data.rankingTitle, data.rankingSubtitle);
+          saveToLocal(data.title, data.questions, data.groups, data.points, data.rankingTitle, data.rankingSubtitle, data.subtitle);
           alert("✓ Jogo Importado!");
         } catch (e) { alert("❌ Erro no arquivo!"); }
       };
@@ -472,7 +477,7 @@ export default function App() {
             <div className="glass-card flex-center" style={{ maxWidth: '1000px' }}>
               <Rocket size={100} color="var(--primary)" style={{ marginBottom: '30px' }} />
               <h1 className="text-huge title-gradient uppercase italic mb-20">{gameTitle}</h1>
-              <p style={{ letterSpacing: '8px', opacity: 0.4, fontWeight: 900 }} className="uppercase mb-40">The Missionary Experience</p>
+              <p style={{ letterSpacing: '8px', opacity: 0.4, fontWeight: 900 }} className="uppercase mb-40">{gameSubtitle}</p>
             </div>
             {!isProjection && (
               <button
@@ -496,8 +501,15 @@ export default function App() {
               <h3 className="uppercase font-black italic mb-20">Configuração do Evento</h3>
               <input
                 className="input-field" style={{ fontSize: '2.5rem', fontWeight: 900, padding: '20px' }}
+                placeholder="Título do Jogo"
                 value={gameTitle}
                 onChange={(e) => { setGameTitle(e.target.value.toUpperCase()); saveToLocal(e.target.value.toUpperCase()); }}
+              />
+              <input
+                className="input-field" style={{ fontSize: '1.2rem', fontWeight: 700, padding: '15px', marginTop: '10px', opacity: 0.8 }}
+                placeholder="Subtítulo (Ex: The Missionary Experience)"
+                value={gameSubtitle}
+                onChange={(e) => { setGameSubtitle(e.target.value); saveToLocal(undefined, undefined, undefined, undefined, undefined, undefined, e.target.value); }}
               />
               <div style={{ display: 'flex', gap: '20px', marginTop: '30px' }}>
                 {currentUser && <button onClick={() => { if (confirm("Limpar placar?")) resetAllPoints(); }} className="btn-secondary" style={{ fontSize: '1rem', flex: 1 }}><RotateCcw size={16} /> Zerar Placar</button>}
@@ -828,11 +840,18 @@ export default function App() {
                 </button>
               )}
 
-              {view !== 'welcome' && !currentUser && (
+              {view !== 'welcome' && (
                 <button
-                  onClick={() => { if (confirm("Deseja sair do jogo atual?")) setView('welcome'); }}
+                  onClick={() => {
+                    if (currentUser) {
+                      setView(view === 'config' ? 'welcome' : 'config');
+                    } else {
+                      if (confirm("Deseja sair do jogo atual?")) setView('welcome');
+                    }
+                  }}
                   className="btn-secondary"
                   style={{ color: 'var(--danger)', border: 'none', padding: '8px' }}
+                  title={currentUser ? (view === 'config' ? "Sair do Jogo" : "Voltar Config") : "Sair do Jogo"}
                 >
                   <LogOut size={18} />
                 </button>
