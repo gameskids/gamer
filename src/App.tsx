@@ -512,7 +512,7 @@ export default function App() {
                 onChange={(e) => { setGameSubtitle(e.target.value); saveToLocal(undefined, undefined, undefined, undefined, undefined, undefined, e.target.value); }}
               />
               <div style={{ display: 'flex', gap: '20px', marginTop: '30px' }}>
-                {currentUser && <button onClick={() => { if (confirm("Limpar placar?")) resetAllPoints(); }} className="btn-secondary" style={{ fontSize: '1rem', flex: 1 }}><RotateCcw size={16} /> Zerar Placar</button>}
+                {currentUser && <button onClick={() => { if (confirm("Limpar placar?")) { resetAllPoints(); setCurrentQuestionIndex(0); setShowAnswer(false); setAnswersByQuestion({}); setAwardsByQuestion({}); setRevealedByQuestion({}); setActiveGroupId(null); setGroupAnswers({}); } }} className="btn-secondary" style={{ fontSize: '1rem', flex: 1 }}><RotateCcw size={16} /> Zerar Placar</button>}
                 <button onClick={() => (questions.length > 0 ? setView('playing') : alert("Crie perguntas!"))} className="btn-primary" style={{ padding: '20px', fontSize: '1.8rem', flex: 2 }}>INICIAR DESAFIO 🚀</button>
               </div>
             </section>
